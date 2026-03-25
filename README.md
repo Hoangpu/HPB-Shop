@@ -68,7 +68,6 @@ Frontend: http://localhost:8080/Trang-chu.html
 Swagger UI: http://localhost:8080/swagger-ui.html
 
 📸 Hình Ảnh Dự Án
-(Bro có thể chụp ảnh màn hình web rồi đẩy vào folder assets/images trong repo rồi dẫn link ảnh vào đây cho sinh động nhé!)
 
 📝 Tác Giả
 Họ tên: Mai Anh Hoàng
