@@ -62,7 +62,7 @@
                         <div class="card border-0 shadow-sm kpi-card bg-primary text-white">
                             <div class="card-body">
                                 <div class="d-flex justify-content-between align-items-center mb-2">
-                                    <span class="x-small fw-bold text-uppercase opacity-75">Doanh thu tháng</span>
+                                    <span id="kpi-revenue-label" class="x-small fw-bold text-uppercase opacity-75">Doanh thu tháng</span>
                                     <i class="fa-solid fa-dollar-sign"></i>
                                 </div>
                                 <h3 id="kpi-monthly-revenue" class="fw-bold mb-0">0₫</h3>
@@ -111,7 +111,14 @@
                 <div class="row g-4 mb-4">
                     <div class="col-lg-8">
                         <div class="card border-0 shadow-sm p-4">
-                            <h6 class="fw-bold mb-4">Biểu đồ doanh thu 7 ngày qua</h6>
+                            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
+                                <h6 id="revenue-chart-title" class="fw-bold mb-0">Biểu đồ doanh thu theo tháng</h6>
+                                <div class="btn-group btn-group-sm" role="group" aria-label="Lọc doanh thu">
+                                    <button type="button" class="btn btn-outline-primary" data-revenue-period="day">Ngày</button>
+                                    <button type="button" class="btn btn-outline-primary" data-revenue-period="week">Tuần</button>
+                                    <button type="button" class="btn btn-outline-primary active" data-revenue-period="month">Tháng</button>
+                                </div>
+                            </div>
                             <canvas id="revenueChart" height="120"></canvas>
                         </div>
                     </div>
@@ -167,8 +174,25 @@
     <script>
         const DASHBOARD_API_URL = 'http://localhost:8080/api/admin/dashboard/summary';
         const PRODUCT_IMAGE_BASE_PATH = '/Du_an/HPB_FE/assets/image/';
+        const REVENUE_PERIOD_CONFIG = {
+            day: {
+                kpiLabel: 'Doanh thu ngày',
+                chartTitle: 'Biểu đồ doanh thu theo ngày'
+            },
+            week: {
+                kpiLabel: 'Doanh thu tuần',
+                chartTitle: 'Biểu đồ doanh thu theo tuần'
+            },
+            month: {
+                kpiLabel: 'Doanh thu tháng',
+                chartTitle: 'Biểu đồ doanh thu theo tháng'
+            }
+        };
+
         let revenueChartInstance;
         let brandChartInstance;
+        let dashboardDataCache = null;
+        let currentRevenuePeriod = 'month';
 
         function formatVND(value) {
             const amount = Number(value || 0);
@@ -184,6 +208,31 @@
                 return { label, value };
             }
             return null;
+        }
+
+        function getRevenuePointsByPeriod(revenueChart, period) {
+            const points = (Array.isArray(revenueChart) ? revenueChart : [])
+                .map(normalizeChartPoint)
+                .filter(Boolean);
+
+            if (period === 'day') {
+                return points.slice(-1);
+            }
+
+            if (period === 'week') {
+                return points.slice(-7);
+            }
+
+            return points;
+        }
+
+        function getRevenueAmountByPeriod(data, period, points) {
+            if (data?.revenueByPeriod != null) return Number(data.revenueByPeriod || 0);
+            if (period === 'day' && data?.dailyRevenue != null) return Number(data.dailyRevenue || 0);
+            if (period === 'week' && data?.weeklyRevenue != null) return Number(data.weeklyRevenue || 0);
+            if (period === 'month' && data?.monthlyRevenue != null) return Number(data.monthlyRevenue || 0);
+
+            return points.reduce((sum, point) => sum + Number(point.value || 0), 0);
         }
 
         function formatDateLabel(rawDate) {
@@ -301,6 +350,49 @@
             });
         }
 
+        function renderRevenueHeader(period) {
+            const config = REVENUE_PERIOD_CONFIG[period] || REVENUE_PERIOD_CONFIG.month;
+            const revenueLabel = document.getElementById('kpi-revenue-label');
+            const chartTitle = document.getElementById('revenue-chart-title');
+            if (revenueLabel) revenueLabel.innerText = config.kpiLabel;
+            if (chartTitle) chartTitle.innerText = config.chartTitle;
+        }
+
+        function renderRevenueByPeriod() {
+            if (!dashboardDataCache) return;
+
+            const periodPoints = getRevenuePointsByPeriod(dashboardDataCache.revenueChart, currentRevenuePeriod);
+            const revenueValue = getRevenueAmountByPeriod(dashboardDataCache, currentRevenuePeriod, periodPoints);
+
+            document.getElementById('kpi-monthly-revenue').innerText = formatVND(revenueValue);
+            renderRevenueHeader(currentRevenuePeriod);
+            renderRevenueChart(periodPoints);
+        }
+
+        function bindRevenuePeriodFilter() {
+            const periodButtons = document.querySelectorAll('[data-revenue-period]');
+            if (!periodButtons.length) return;
+
+            periodButtons.forEach((button) => {
+                button.addEventListener('click', async () => {
+                    const selectedPeriod = button.getAttribute('data-revenue-period');
+                    if (!selectedPeriod || selectedPeriod === currentRevenuePeriod) return;
+
+                    currentRevenuePeriod = selectedPeriod;
+                    periodButtons.forEach((item) => item.classList.remove('active'));
+                    button.classList.add('active');
+
+                    try {
+                        dashboardDataCache = await loadDashboardData(currentRevenuePeriod);
+                        renderRevenueByPeriod();
+                    } catch (error) {
+                        console.error(error);
+                        alert('Không tải được dữ liệu doanh thu theo bộ lọc. Vui lòng thử lại.');
+                    }
+                });
+            });
+        }
+
         function renderBrandChart(brandChart) {
             const ctx = document.getElementById('brandChart');
             if (!ctx) return;
@@ -327,8 +419,9 @@
             });
         }
 
-        async function loadDashboardData() {
-            const response = await fetch(DASHBOARD_API_URL, {
+        async function loadDashboardData(period = 'month') {
+            const query = new URLSearchParams({ period: period || 'month' });
+            const response = await fetch(`${DASHBOARD_API_URL}?${query.toString()}`, {
                 headers: window.AdminAuth.authHeaders()
             });
             if (!response.ok) {
@@ -338,7 +431,6 @@
         }
 
         function renderKpiCards(data) {
-            document.getElementById('kpi-monthly-revenue').innerText = formatVND(data.monthlyRevenue);
             document.getElementById('kpi-new-orders').innerText = Number(data.newOrders || 0).toLocaleString('vi-VN');
             document.getElementById('kpi-new-customers').innerText = Number(data.newCustomers || 0).toLocaleString('vi-VN');
             document.getElementById('kpi-cancel-rate').innerText = `${Number(data.cancelRate || 0).toLocaleString('vi-VN')}%`;
@@ -349,13 +441,16 @@
             if (!user) return;
             window.AdminAuth.applyAdminName(user);
             window.AdminAuth.bindLogoutLinks();
+            bindRevenuePeriodFilter();
 
             try {
-                const dashboardData = await loadDashboardData();
+                const dashboardData = await loadDashboardData(currentRevenuePeriod);
+                dashboardDataCache = dashboardData;
+
                 renderKpiCards(dashboardData);
                 renderLatestOrders(dashboardData.latestOrders);
                 renderLowStockProducts(dashboardData.lowStockProducts);
-                renderRevenueChart(dashboardData.revenueChart);
+                renderRevenueByPeriod();
                 renderBrandChart(dashboardData.brandChart);
             } catch (error) {
                 console.error(error);

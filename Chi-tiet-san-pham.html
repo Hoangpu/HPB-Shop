@@ -42,7 +42,7 @@
                                 <a href="Don-mua.html">Đơn mua</a>
                             </li>
                             <li class="header__navbar-user-item header__navbar-user-item--separate">
-                                <a href="#">Đăng xuất</a>
+                                <a href="Dang-nhap.html">Đăng xuất</a>
                             </li>
                         </ul>
                     </div>
@@ -93,6 +93,7 @@
                     </div>
 
                     <h2 class="text-primary fw-bold mb-4" id="product-price">1.500.000 ₫</h2>
+                    <div id="stock-status" class="mb-3 small"></div>
 
                     <div class="mb-4">
                         <p class="fw-bold mb-2">Kích thước:</p>
@@ -291,6 +292,8 @@
             currentProduct = product;
             const productName = product.name || "Sản phẩm";
             const imageUrl = resolveProductImageUrl(product.imageUrl);
+            const stock = Number(product.stock || 0);
+            const isOutOfStock = stock <= 0;
 
             document.title = `${productName} - HPB Sports`;
             document.getElementById("product-name").textContent = productName;
@@ -302,7 +305,33 @@
 
             const productBadge = document.getElementById("product-badge");
             if (productBadge) {
-                productBadge.textContent = product.brand ? `Thương hiệu ${product.brand}` : "Sản phẩm mới";
+                if (isOutOfStock) {
+                    productBadge.textContent = "Hết hàng";
+                    productBadge.className = "badge bg-danger text-white mb-2";
+                } else {
+                    productBadge.textContent = product.brand ? `Thương hiệu ${product.brand}` : "Sản phẩm mới";
+                    productBadge.className = "badge bg-danger-subtle text-danger mb-2";
+                }
+            }
+
+            const stockStatus = document.getElementById("stock-status");
+            if (stockStatus) {
+                if (isOutOfStock) {
+                    stockStatus.innerHTML = '<span class="badge bg-danger">Hết hàng</span>';
+                } else {
+                    stockStatus.innerHTML = `<span class="badge bg-success">Còn hàng: ${stock}</span>`;
+                }
+            }
+
+            const addToCartButton = document.getElementById("add-to-cart-btn");
+            const buyNowButton = document.getElementById("buy-now-btn");
+            if (addToCartButton) addToCartButton.disabled = isOutOfStock;
+            if (buyNowButton) buyNowButton.disabled = isOutOfStock;
+
+            const qtyInput = document.getElementById("qty");
+            if (qtyInput) {
+                qtyInput.value = "1";
+                qtyInput.disabled = isOutOfStock;
             }
 
             const thumbs = document.getElementById("product-thumbs");
@@ -338,10 +367,21 @@
                 return false;
             }
 
+            const stock = Number(currentProduct.stock || 0);
+            const quantity = getSelectedQuantity();
+            if (stock <= 0) {
+                alert("Sản phẩm này đã hết hàng.");
+                return false;
+            }
+            if (quantity > stock) {
+                alert(`Số lượng vượt quá tồn kho. Chỉ còn ${stock} sản phẩm.`);
+                return false;
+            }
+
             const payload = {
                 userId: user.userId,
                 productId: currentProduct.productId,
-                quantity: getSelectedQuantity()
+                quantity
             };
 
             const response = await fetch(`${API_CART_URL}/add`, {
@@ -430,7 +470,9 @@
         function updateQty(val) {
             let qty = document.getElementById('qty');
             let current = parseInt(qty.value);
-            if (current + val >= 1) qty.value = current + val;
+            const stock = Number(currentProduct?.stock || 0);
+            if (stock <= 0) return;
+            if (current + val >= 1 && current + val <= stock) qty.value = current + val;
         }
 
         document.addEventListener("DOMContentLoaded", async () => {

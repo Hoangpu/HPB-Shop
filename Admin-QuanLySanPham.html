@@ -88,6 +88,12 @@
                 </div>
 
                 <div class="card border-0 shadow-sm p-4">
+                    <div class="mb-3">
+                        <div class="input-group input-group-sm">
+                            <span class="input-group-text bg-white"><i class="fa-solid fa-magnifying-glass"></i></span>
+                            <input id="product-search-input" type="text" class="form-control" placeholder="Tìm theo mã hoặc tên sản phẩm...">
+                        </div>
+                    </div>
                     <div class="table-responsive">
                         <table class="table table-hover align-middle x-small">
                             <thead class="table-light">
@@ -105,6 +111,9 @@
                                 </tbody>
                         </table>
                     </div>
+                    <nav class="mt-3" aria-label="Phân trang sản phẩm admin">
+                        <ul id="product-pagination" class="pagination pagination-sm justify-content-end mb-0"></ul>
+                    </nav>
                 </div>
             </div>
         </main>
@@ -127,24 +136,53 @@
                         <div class="row mb-3">
                             <div class="col">
                                 <label class="form-label small fw-bold">Thương hiệu</label>
-                                <select class="form-select form-select-sm" id="brand">
-                                    <option value="Yonex">Yonex</option>
-                                    <option value="Lining">Lining</option>
-                                    <option value="Victor">Victor</option>
-                                </select>
+                                <input type="text" class="form-control form-control-sm" id="brand" list="brand-list" placeholder="vd: Yonex, Lining" required>
+                                <datalist id="brand-list">
+                                    <option value="Yonex"></option>
+                                    <option value="Lining"></option>
+                                    <option value="Victor"></option>
+                                </datalist>
                             </div>
                             <div class="col">
                                 <label class="form-label small fw-bold">Giá bán (đ)</label>
-                                <input type="number" class="form-control form-control-sm" id="price" required>
+                                <input type="number" class="form-control form-control-sm" id="price" min="0" step="1000" required>
                             </div>
                         </div>
                         <div class="mb-3">
                             <label class="form-label small fw-bold">Số lượng kho</label>
-                            <input type="number" class="form-control form-control-sm" id="stock" required>
+                            <input type="number" class="form-control form-control-sm" id="stock" min="0" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold">SKU</label>
+                            <input type="text" class="form-control form-control-sm" id="sku" placeholder="vd: YNX-100ZZ-4U-G5">
+                        </div>
+                        <div class="row mb-3">
+                            <div class="col">
+                                <label class="form-label small fw-bold">Trọng lượng (U)</label>
+                                <input type="text" class="form-control form-control-sm" id="weightU" placeholder="vd: 3U, 4U">
+                            </div>
+                            <div class="col">
+                                <label class="form-label small fw-bold">Cỡ cán (G)</label>
+                                <input type="text" class="form-control form-control-sm" id="gripG" placeholder="vd: G5">
+                            </div>
+                        </div>
+                        <div class="row mb-3">
+                            <div class="col">
+                                <label class="form-label small fw-bold">Lực căng</label>
+                                <input type="text" class="form-control form-control-sm" id="tension" placeholder="vd: 20-28 lbs">
+                            </div>
+                            <div class="col">
+                                <label class="form-label small fw-bold">Điểm cân bằng</label>
+                                <input type="text" class="form-control form-control-sm" id="balancePoint" placeholder="vd: 295mm">
+                            </div>
                         </div>
                         <div class="mb-3">
                             <label class="form-label small fw-bold">Link ảnh</label>
                             <input type="text" class="form-control form-control-sm" id="imageUrl" placeholder="vd: yonex-100zz.jpg">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold">Mô tả sản phẩm</label>
+                            <textarea class="form-control form-control-sm" id="description" rows="3" placeholder="Mô tả ngắn về sản phẩm"></textarea>
                         </div>
                         <button type="submit" class="btn btn-primary btn-sm w-100 fw-bold">Lưu thông tin</button>
                     </form>

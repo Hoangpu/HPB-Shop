@@ -41,8 +41,20 @@
                     <div class="card border-0 shadow-sm rounded-4 p-4 mb-4">
                         <h5 class="fw-bold mb-4">Thông tin nhận hàng</h5>
                         <div class="mb-3">
-                            <label for="checkout-address" class="form-label small fw-bold">Địa chỉ nhận hàng</label>
-                            <input id="checkout-address" class="form-control" placeholder="Nhập địa chỉ nhận hàng">
+                            <label for="checkout-province" class="form-label small fw-bold">Tỉnh / Thành phố</label>
+                            <select id="checkout-province" class="form-select">
+                                <option value="">Chọn Tỉnh / Thành phố</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="checkout-ward" class="form-label small fw-bold">Xã / Phường / Đặc khu</label>
+                            <select id="checkout-ward" class="form-select" disabled>
+                                <option value="">Chọn Xã / Phường / Đặc khu</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="checkout-address" class="form-label small fw-bold">Số nhà, tên đường</label>
+                            <input id="checkout-address" class="form-control" placeholder="Ví dụ: 123 Lê Lợi">
                         </div>
                         <div class="mb-0">
                             <label for="checkout-phone" class="form-label small fw-bold">Số điện thoại</label>

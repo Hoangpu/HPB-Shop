@@ -1,6 +1,46 @@
 const API_ORDER_URL = "http://localhost:8080/api/customer/orders";
 const PRODUCT_IMAGE_BASE_PATH = "/Du_an/HPB_FE/assets/image/";
 const SHIPPING_FEE = 50000;
+const LOCATION_API_URL = "https://provinces.open-api.vn/api/?depth=3";
+
+const PROVINCES_2025_34 = new Set([
+    "ha noi",
+    "hai phong",
+    "hue",
+    "da nang",
+    "can tho",
+    "ho chi minh",
+    "an giang",
+    "bac ninh",
+    "ca mau",
+    "cao bang",
+    "dak lak",
+    "dien bien",
+    "dong nai",
+    "dong thap",
+    "gia lai",
+    "ha tinh",
+    "hung yen",
+    "khanh hoa",
+    "lai chau",
+    "lam dong",
+    "lang son",
+    "lao cai",
+    "nghe an",
+    "ninh binh",
+    "phu tho",
+    "quang ngai",
+    "quang ninh",
+    "quang tri",
+    "son la",
+    "tay ninh",
+    "thai nguyen",
+    "thanh hoa",
+    "tuyen quang",
+    "vinh long"
+]);
+
+let locationData = [];
 
 function getCurrentUser() {
     try {
@@ -106,6 +146,124 @@ function getSelectedPaymentMethod() {
     return selected ? selected.value : "COD";
 }
 
+function resetSelect(selectEl, placeholder, disabled = true) {
+    if (!selectEl) return;
+    selectEl.innerHTML = `<option value="">${placeholder}</option>`;
+    selectEl.disabled = disabled;
+}
+
+function fillSelect(selectEl, placeholder, items) {
+    if (!selectEl) return;
+    const options = (items || []).map((item) => {
+        return `<option value="${item.code}">${item.name}</option>`;
+    }).join("");
+
+    selectEl.innerHTML = `<option value="">${placeholder}</option>${options}`;
+    selectEl.disabled = !Array.isArray(items) || items.length === 0;
+}
+
+function normalizeProvinceName(name) {
+    return String(name || "")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/^thanh pho\s+/i, "")
+        .replace(/^tinh\s+/i, "")
+        .trim()
+        .toLowerCase();
+}
+
+function filterTo34Provinces(items) {
+    const source = Array.isArray(items) ? items : [];
+    return source.filter((province) => PROVINCES_2025_34.has(normalizeProvinceName(province?.name)));
+}
+
+function getAddressParts() {
+    const provinceEl = document.getElementById("checkout-province");
+    const wardEl = document.getElementById("checkout-ward");
+
+    const provinceName = provinceEl?.options[provinceEl.selectedIndex]?.text || "";
+    const wardName = wardEl?.options[wardEl.selectedIndex]?.text || "";
+
+    return {
+        provinceCode: provinceEl?.value || "",
+        wardCode: wardEl?.value || "",
+        provinceName: provinceEl?.value ? provinceName : "",
+        wardName: wardEl?.value ? wardName : ""
+    };
+}
+
+function composeFullAddress(detailAddress) {
+    const { provinceName, wardName } = getAddressParts();
+    const parts = [detailAddress, wardName, provinceName].filter(Boolean);
+    return parts.join(", ");
+}
+
+function flattenLocalLevelUnits(province) {
+    const districts = province?.districts || [];
+    const units = districts.flatMap((district) => {
+        return (district.wards || []).map((ward) => ({
+            code: `${district.code}-${ward.code}`,
+            name: ward.name
+        }));
+    });
+
+    return units
+        .filter((unit) => String(unit?.name || "").trim())
+        .sort((a, b) => String(a.name).localeCompare(String(b.name), "vi"));
+}
+
+async function initializeLocationSelectors() {
+    const provinceEl = document.getElementById("checkout-province");
+    const wardEl = document.getElementById("checkout-ward");
+
+    if (!provinceEl || !wardEl) return;
+
+    resetSelect(provinceEl, "Chọn Tỉnh / Thành phố", true);
+    resetSelect(wardEl, "Chọn Xã / Phường / Đặc khu", true);
+
+    try {
+        const response = await fetch(LOCATION_API_URL);
+        if (!response.ok) {
+            throw new Error("Không tải được dữ liệu địa chỉ.");
+        }
+
+        const rawLocationData = await response.json();
+        locationData = filterTo34Provinces(rawLocationData);
+
+        if (locationData.length !== 34) {
+            console.warn("Danh sách cấp tỉnh hiện tại không đủ 34 đơn vị theo cấu hình.", {
+                expected: 34,
+                actual: locationData.length
+            });
+        }
+
+        fillSelect(provinceEl, "Chọn Tỉnh / Thành phố", locationData);
+
+        provinceEl.addEventListener("change", () => {
+            const selectedProvince = locationData.find(
+                (province) => String(province.code) === String(provinceEl.value)
+            );
+
+            if (!selectedProvince) {
+                resetSelect(wardEl, "Chọn Xã / Phường / Đặc khu", true);
+                return;
+            }
+
+            const localUnits = flattenLocalLevelUnits(selectedProvince);
+
+            if (!localUnits.length) {
+                resetSelect(wardEl, "Tỉnh này hiện chưa có dữ liệu Xã / Phường / Đặc khu", true);
+                return;
+            }
+
+            fillSelect(wardEl, "Chọn Xã / Phường / Đặc khu", localUnits);
+        });
+    } catch (error) {
+        console.error(error);
+        alert("Không thể tải danh sách Tỉnh/Thành và Xã/Phường/Đặc khu. Vui lòng tải lại trang.");
+    }
+}
+
 function setupCheckoutSubmit() {
     const submitBtn = document.getElementById("checkout-submit");
     if (!submitBtn) return;
@@ -120,14 +278,23 @@ function setupCheckoutSubmit() {
 
         const addressInput = document.getElementById("checkout-address");
         const phoneInput = document.getElementById("checkout-phone");
+        const provinceEl = document.getElementById("checkout-province");
+        const wardEl = document.getElementById("checkout-ward");
 
-        const address = (addressInput?.value || "").trim();
+        const detailAddress = (addressInput?.value || "").trim();
         const phone = (phoneInput?.value || "").trim();
 
-        if (!address || !phone) {
-            alert("Vui lòng nhập đầy đủ địa chỉ và số điện thoại.");
+        if (!provinceEl?.value || !wardEl?.value) {
+            alert("Vui lòng chọn đầy đủ Tỉnh/Thành và Xã/Phường/Đặc khu.");
             return;
         }
+
+        if (!detailAddress || !phone) {
+            alert("Vui lòng nhập đầy đủ địa chỉ chi tiết và số điện thoại.");
+            return;
+        }
+
+        const address = composeFullAddress(detailAddress);
 
         const payload = {
             userId: user.userId,
@@ -183,6 +350,7 @@ async function initializeCheckout() {
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
+    await initializeLocationSelectors();
     setupCheckoutSubmit();
     await initializeCheckout();
 });

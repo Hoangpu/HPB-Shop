@@ -1,6 +1,10 @@
 const INV_API = "http://localhost:8080/api/admin/inventory";
 const PRODUCT_IMAGE_BASE_PATH = '/Du_an/HPB_FE/assets/image/';
-let inventoryData = []; 
+const INVENTORY_PAGE_SIZE = 8;
+
+let inventoryData = [];
+let filteredInventoryData = [];
+let currentInventoryPage = 1;
 
 document.addEventListener('DOMContentLoaded', () => {
     const user = window.AdminAuth?.requireAdmin();
@@ -16,11 +20,12 @@ document.addEventListener('DOMContentLoaded', () => {
     // Hàm thực hiện tìm kiếm chung
     const doSearch = () => {
         const keyword = searchInput.value.toLowerCase().trim();
-        const filtered = inventoryData.filter(p => 
+        filteredInventoryData = inventoryData.filter(p =>
             getProductName(p).toLowerCase().includes(keyword) || 
             (p.brand && p.brand.toLowerCase().includes(keyword))
         );
-        renderInventoryTable(filtered);
+        currentInventoryPage = 1;
+        renderInventorySection();
     };
 
     // 1. TÌM KIẾM KHI BẤM KÍNH LÚP
@@ -97,7 +102,9 @@ async function loadAllInventory() {
         const prodRes = await fetch(`${INV_API}/products`, { headers: getAuthHeaders() });
         if (!prodRes.ok) throw new Error(`HTTP_${prodRes.status}`);
         inventoryData = await prodRes.json();
-        renderInventoryTable(inventoryData);
+        filteredInventoryData = [...inventoryData];
+        currentInventoryPage = 1;
+        renderInventorySection();
         fillProductSelect(inventoryData);
 
         // Tải Lịch sử
@@ -116,7 +123,37 @@ async function loadAllInventory() {
     }
 }
 
+function getTotalPages(totalItems, pageSize) {
+    const size = Number(pageSize) > 0 ? Number(pageSize) : 1;
+    return Math.max(1, Math.ceil(Number(totalItems || 0) / size));
+}
+
+function getPagedItems(items, currentPage, pageSize) {
+    const source = Array.isArray(items) ? items : [];
+    const safePage = Math.max(1, Number(currentPage) || 1);
+    const safePageSize = Math.max(1, Number(pageSize) || 1);
+    const start = (safePage - 1) * safePageSize;
+    return source.slice(start, start + safePageSize);
+}
+
+function renderInventorySection() {
+    const totalPages = getTotalPages(filteredInventoryData.length, INVENTORY_PAGE_SIZE);
+    currentInventoryPage = Math.min(Math.max(1, currentInventoryPage), totalPages);
+
+    const pagedData = getPagedItems(filteredInventoryData, currentInventoryPage, INVENTORY_PAGE_SIZE);
+    renderInventoryTable(pagedData);
+    renderInventoryPagination(filteredInventoryData.length, currentInventoryPage, INVENTORY_PAGE_SIZE);
+}
+
 function renderInventoryTable(data) {
+    const tableBody = document.getElementById('inventoryTableBody');
+    if (!tableBody) return;
+
+    if (!Array.isArray(data) || data.length === 0) {
+        tableBody.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-secondary">Không có sản phẩm phù hợp.</td></tr>';
+        return;
+    }
+
     const html = data.map(p => `
         <tr>
             <td class="ps-4">#${p.productId}</td>
@@ -138,7 +175,64 @@ function renderInventoryTable(data) {
             </td>
         </tr>
     `).join('');
-    document.getElementById('inventoryTableBody').innerHTML = html;
+    tableBody.innerHTML = html;
+}
+
+function renderInventoryPagination(totalItems, currentPage, pageSize) {
+    const paginationEl = document.getElementById('inventory-pagination');
+    if (!paginationEl) return;
+
+    const totalPages = getTotalPages(totalItems, pageSize);
+    if (totalItems <= pageSize) {
+        paginationEl.innerHTML = '';
+        return;
+    }
+
+    const maxVisible = 5;
+    const half = Math.floor(maxVisible / 2);
+    let start = Math.max(1, currentPage - half);
+    let end = Math.min(totalPages, start + maxVisible - 1);
+
+    if (end - start + 1 < maxVisible) {
+        start = Math.max(1, end - maxVisible + 1);
+    }
+
+    const prevDisabled = currentPage <= 1 ? ' disabled' : '';
+    const nextDisabled = currentPage >= totalPages ? ' disabled' : '';
+
+    let html = `
+        <li class="page-item${prevDisabled}">
+            <button class="page-link" data-page="${currentPage - 1}" aria-label="Trang trước">&laquo;</button>
+        </li>
+    `;
+
+    for (let page = start; page <= end; page += 1) {
+        const active = page === currentPage ? ' active' : '';
+        html += `
+            <li class="page-item${active}">
+                <button class="page-link" data-page="${page}">${page}</button>
+            </li>
+        `;
+    }
+
+    html += `
+        <li class="page-item${nextDisabled}">
+            <button class="page-link" data-page="${currentPage + 1}" aria-label="Trang sau">&raquo;</button>
+        </li>
+    `;
+
+    paginationEl.innerHTML = html;
+
+    paginationEl.querySelectorAll('button[data-page]').forEach((button) => {
+        button.addEventListener('click', () => {
+            const targetPage = Number(button.getAttribute('data-page'));
+            if (!Number.isFinite(targetPage)) return;
+            if (targetPage < 1 || targetPage > totalPages || targetPage === currentInventoryPage) return;
+
+            currentInventoryPage = targetPage;
+            renderInventorySection();
+        });
+    });
 }
 
 function renderLogTable(logs) {

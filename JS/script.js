@@ -1,7 +1,11 @@
 const API_PRODUCTS_URL = "http://localhost:8080/api/products";
+const API_HOT_PRODUCTS_URL = `${API_PRODUCTS_URL}/hot?limit=3`;
 const PRODUCT_IMAGE_BASE_PATH = "/Du_an/HPB_FE/assets/image/";
 const SUPPORTED_BRANDS = ["all", "Yonex", "Lining", "Victor", "Kumpoo", "VNB"];
+const HOME_PRODUCTS_PAGE_SIZE = 8;
 let currentBrand = "all";
+let currentPage = 1;
+let currentProducts = [];
 
 function getCurrentUser() {
     try {
@@ -132,8 +136,74 @@ function scrollToProductSection() {
     });
 }
 
+function getHotProducts(products) {
+    if (!Array.isArray(products)) {
+        return [];
+    }
+
+    return products.slice(0, 3);
+}
+
+function getNewestProducts(products) {
+    if (!Array.isArray(products)) {
+        return [];
+    }
+
+    return [...products]
+        .sort((a, b) => {
+            const timeA = a?.createdAt ? new Date(a.createdAt).getTime() : 0;
+            const timeB = b?.createdAt ? new Date(b.createdAt).getTime() : 0;
+
+            if (timeB !== timeA) {
+                return timeB - timeA;
+            }
+
+            return Number(b?.productId || 0) - Number(a?.productId || 0);
+        })
+        .slice(0, 3);
+}
+
+function renderHotProducts(products) {
+    const container = document.getElementById("hot-product-list");
+    if (!container) {
+        return;
+    }
+
+    const hotProducts = getHotProducts(products);
+    if (!hotProducts.length) {
+        container.innerHTML = `
+            <div class="col-12">
+                <p class="text-center text-secondary mb-0">Chưa có dữ liệu sản phẩm hot.</p>
+            </div>
+        `;
+        return;
+    }
+
+    container.innerHTML = hotProducts.map((product, index) => {
+        const rank = index + 1;
+        return `
+            <div class="col">
+                <div class="card h-100 shadow-sm border-0 product-card hot-product-card position-relative">
+                    <span class="hot-rank-badge">Top ${rank}</span>
+                    <img src="${resolveProductImageUrl(product.imageUrl)}" class="card-img-top p-3" alt="${product.name}">
+                    <div class="card-body text-center">
+                        <h6 class="card-title text-truncate">${product.name}</h6>
+                        <p class="text-danger fw-bold mb-1">${formatPrice(product.price)}</p>
+                        <p class="small text-secondary mb-3">${product.brand || "HPB Sports"}</p>
+                        <a href="Chi-tiet-san-pham.html?id=${product.productId}" class="btn btn-sm btn-primary w-100">Xem nhanh</a>
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join("");
+}
+
 function renderProducts(data) {
     const productList = document.getElementById("product-list");
+    if (!productList) {
+        return;
+    }
+
     productList.innerHTML = "";
 
     if (!Array.isArray(data) || data.length === 0) {
@@ -163,6 +233,100 @@ function renderProducts(data) {
     });
 }
 
+function getTotalPages(totalItems, pageSize) {
+    const safeSize = Math.max(1, Number(pageSize) || 1);
+    return Math.max(1, Math.ceil(Number(totalItems || 0) / safeSize));
+}
+
+function getPagedItems(items, page, pageSize) {
+    const source = Array.isArray(items) ? items : [];
+    const safePage = Math.max(1, Number(page) || 1);
+    const safeSize = Math.max(1, Number(pageSize) || 1);
+    const start = (safePage - 1) * safeSize;
+    return source.slice(start, start + safeSize);
+}
+
+function renderHomePagination() {
+    const paginationEl = document.getElementById("home-product-pagination");
+    if (!paginationEl) {
+        return;
+    }
+
+    const totalItems = currentProducts.length;
+    const totalPages = getTotalPages(totalItems, HOME_PRODUCTS_PAGE_SIZE);
+    currentPage = Math.min(Math.max(1, currentPage), totalPages);
+
+    if (totalItems <= HOME_PRODUCTS_PAGE_SIZE) {
+        paginationEl.innerHTML = "";
+        return;
+    }
+
+    const maxVisible = 5;
+    const half = Math.floor(maxVisible / 2);
+    let start = Math.max(1, currentPage - half);
+    let end = Math.min(totalPages, start + maxVisible - 1);
+    if (end - start + 1 < maxVisible) {
+        start = Math.max(1, end - maxVisible + 1);
+    }
+
+    const prevDisabled = currentPage === 1 ? " disabled" : "";
+    const nextDisabled = currentPage === totalPages ? " disabled" : "";
+
+    let html = `
+        <li class="page-item${prevDisabled}">
+            <a class="page-link" href="#" data-page="prev">Trước</a>
+        </li>
+    `;
+
+    for (let page = start; page <= end; page += 1) {
+        const active = page === currentPage ? " active" : "";
+        html += `
+            <li class="page-item${active}">
+                <a class="page-link" href="#" data-page="${page}">${page}</a>
+            </li>
+        `;
+    }
+
+    html += `
+        <li class="page-item${nextDisabled}">
+            <a class="page-link" href="#" data-page="next">Tiếp</a>
+        </li>
+    `;
+
+    paginationEl.innerHTML = html;
+
+    paginationEl.querySelectorAll("a.page-link[data-page]").forEach((link) => {
+        link.addEventListener("click", (event) => {
+            event.preventDefault();
+            const action = link.getAttribute("data-page");
+            if (action === "prev" && currentPage > 1) {
+                currentPage -= 1;
+            } else if (action === "next" && currentPage < totalPages) {
+                currentPage += 1;
+            } else if (!Number.isNaN(Number(action))) {
+                currentPage = Number(action);
+            }
+
+            renderCurrentPageProducts();
+            scrollToProductSection();
+        });
+    });
+}
+
+function renderCurrentPageProducts() {
+    const pagedProducts = getPagedItems(currentProducts, currentPage, HOME_PRODUCTS_PAGE_SIZE);
+    renderProducts(pagedProducts);
+    renderHomePagination();
+}
+
+function updateProductData(products, resetPage = true) {
+    currentProducts = Array.isArray(products) ? products : [];
+    if (resetPage) {
+        currentPage = 1;
+    }
+    renderCurrentPageProducts();
+}
+
 async function fetchProducts(url) {
     const response = await fetch(url);
     if (!response.ok) {
@@ -179,10 +343,10 @@ async function loadProductsByBrand(brand) {
 
     try {
         const products = await fetchProducts(endpoint);
-        renderProducts(products);
+        updateProductData(products, true);
     } catch (error) {
         console.error(error);
-        renderProducts([]);
+        updateProductData([], true);
     }
 }
 
@@ -197,17 +361,17 @@ async function searchProducts(keyword) {
     try {
         const results = await fetchProducts(`${API_PRODUCTS_URL}/search?keyword=${encodeURIComponent(normalizedKeyword)}`);
         if (currentBrand === "all") {
-            renderProducts(results);
+            updateProductData(results, true);
             return;
         }
 
         const filtered = results.filter((item) =>
             (item.brand || "").toLowerCase() === currentBrand.toLowerCase()
         );
-        renderProducts(filtered);
+        updateProductData(filtered, true);
     } catch (error) {
         console.error(error);
-        renderProducts([]);
+        updateProductData([], true);
     }
 }
 
@@ -255,6 +419,20 @@ document.addEventListener("DOMContentLoaded", async () => {
     setupAuthMenu();
     setupBrandFilters();
     setupSearchForm();
+
+    try {
+        const hotProducts = await fetchProducts(API_HOT_PRODUCTS_URL);
+        renderHotProducts(hotProducts);
+    } catch (error) {
+        console.error(error);
+        try {
+            const fallbackProducts = await fetchProducts(API_PRODUCTS_URL);
+            renderHotProducts(getNewestProducts(fallbackProducts));
+        } catch (fallbackError) {
+            console.error(fallbackError);
+            renderHotProducts([]);
+        }
+    }
 
     const initialBrand = getInitialBrandFromQuery();
     setActiveBrandButton(initialBrand);
