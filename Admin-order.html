@@ -121,7 +121,7 @@
                     <div class="p-3 bg-light-subtle d-flex gap-2">
                         <div class="input-group input-group-sm w-50">
                             <span class="input-group-text bg-white"><i class="fa-solid fa-magnifying-glass"></i></span>
-                            <input id="search-input" type="text" class="form-control" placeholder="Tìm theo Mã đơn, Tên khách hàng...">
+                            <input id="search-input" type="text" class="form-control" placeholder="Tìm theo mã đơn, tên, SĐT">
                         </div>
                         <select id="payment-filter" class="form-select form-select-sm w-25">
                             <option value="all">Loại thanh toán</option>
@@ -199,6 +199,22 @@
                 .replace(/[đĐ]/g, 'd')
                 .toLowerCase()
                 .trim();
+        }
+
+        function extractOrderIdFromKeyword(value) {
+            const text = String(value || '').trim().toLowerCase();
+            if (!text) return null;
+
+            if (/^\d+$/.test(text)) {
+                return Number(text);
+            }
+
+            const codeMatch = text.match(/^#?hbp0*(\d+)$/);
+            if (codeMatch) {
+                return Number(codeMatch[1]);
+            }
+
+            return null;
         }
 
         function normalizePayment(method) {
@@ -355,7 +371,9 @@
         }
 
         function applyFilters(resetPage = true) {
-            const keyword = normalizeSearchText(document.getElementById('search-input').value || '');
+            const rawKeyword = String(document.getElementById('search-input').value || '').trim();
+            const keyword = normalizeSearchText(rawKeyword);
+            const matchedOrderId = extractOrderIdFromKeyword(rawKeyword);
             const payment = document.getElementById('payment-filter').value;
             const date = document.getElementById('date-filter').value;
 
@@ -363,15 +381,26 @@
                 const statusMatched = currentStatus === 'all' || order.status === currentStatus;
                 if (!statusMatched) return false;
 
-                const searchable = [
-                    String(order.orderId || ''),
-                    String(order.user?.fullname || ''),
-                    String(order.phone || ''),
-                    String(order.shippingAddress || ''),
-                    ...((order.orderItems || []).map((item) => item?.product?.name || ''))
-                ].join(' ');
-                const searchableNormalized = normalizeSearchText(searchable);
-                const keywordMatched = !keyword || searchableNormalized.includes(keyword);
+                const orderId = String(order.orderId || '').trim();
+                const orderCode = `#HPB${String(order.orderId || '').padStart(4, '0')}`;
+                const orderIdNumber = Number(order.orderId || 0);
+                const customerName = normalizeSearchText(order.user?.fullname || '');
+                const phone = String(order.phone || order.user?.phone || '').trim();
+                let keywordMatched = true;
+
+                if (keyword) {
+                    if (matchedOrderId !== null) {
+                        keywordMatched = orderIdNumber === matchedOrderId || phone.includes(rawKeyword);
+                    } else {
+                        const orderCodeNormalized = normalizeSearchText(orderCode);
+                        const phoneNormalized = normalizeSearchText(phone);
+                        keywordMatched =
+                            orderCodeNormalized.includes(keyword) ||
+                            customerName.includes(keyword) ||
+                            phoneNormalized.includes(keyword);
+                    }
+                }
+
                 if (!keywordMatched) return false;
 
                 const paymentMatched = payment === 'all' || normalizePayment(order.paymentMethod) === payment;

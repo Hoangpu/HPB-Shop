@@ -19,11 +19,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Hàm thực hiện tìm kiếm chung
     const doSearch = () => {
-        const keyword = searchInput.value.toLowerCase().trim();
-        filteredInventoryData = inventoryData.filter(p =>
-            getProductName(p).toLowerCase().includes(keyword) || 
-            (p.brand && p.brand.toLowerCase().includes(keyword))
-        );
+        const rawKeyword = String(searchInput?.value || '').trim();
+        const keyword = normalizeSearchText(rawKeyword);
+        const isNumericIdQuery = /^\d+$/.test(rawKeyword);
+
+        filteredInventoryData = inventoryData.filter((p) => {
+            if (!keyword) return true;
+
+            if (isNumericIdQuery) {
+                return String(p.productId || '').trim() === rawKeyword;
+            }
+
+            const productName = normalizeSearchText(getProductName(p));
+            const brand = normalizeSearchText(p.brand);
+            return productName.includes(keyword) || brand.includes(keyword);
+        });
+
         currentInventoryPage = 1;
         renderInventorySection();
     };
@@ -74,6 +85,15 @@ function getAuthHeaders(withJson = false) {
 
 function getProductName(product) {
     return product?.name || product?.productName || 'Sản phẩm';
+}
+
+function normalizeSearchText(value) {
+    return String(value || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[đĐ]/g, 'd')
+        .toLowerCase()
+        .trim();
 }
 
 function resolveProductImageUrl(rawImageUrl) {
