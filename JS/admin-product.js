@@ -133,12 +133,17 @@ function renderTable(data) {
             <td class="fw-bold">${Number(p.price || 0).toLocaleString('vi-VN')}đ</td>
             <td><span class="fw-bold ${p.stock < 5 ? 'text-danger' : ''}">${p.stock}</span></td>
             <td class="text-end">
-                <button class="btn btn-light btn-sm me-1" onclick="prepareEdit(${p.productId})"><i class="fa-solid fa-pen-to-square text-primary"></i></button>
+                <button class="btn btn-light btn-sm me-1" onclick="openAdminProductDetail(${p.productId})"><i class="fa-solid fa-pen-to-square text-primary"></i></button>
                 <button class="btn btn-light btn-sm" onclick="deleteProduct(${p.productId})"><i class="fa-solid fa-trash text-danger"></i></button>
             </td>
         </tr>
     `).join('');
     tableBody.innerHTML = html;
+}
+
+function openAdminProductDetail(id) {
+    if (!id) return;
+    window.location.href = `Admin-product-detail.html?id=${encodeURIComponent(id)}`;
 }
 
 function renderPagination(totalItems, currentPage, pageSize) {

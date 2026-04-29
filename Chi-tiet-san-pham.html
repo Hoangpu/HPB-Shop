@@ -264,18 +264,38 @@
             return `${PRODUCT_IMAGE_BASE_PATH}${normalized}`;
         }
 
+        function getProductField(product, keys, fallback = "") {
+            if (!product || !Array.isArray(keys)) return fallback;
+            for (const key of keys) {
+                const value = product[key];
+                if (value !== null && value !== undefined && String(value).trim() !== "") {
+                    return value;
+                }
+            }
+            return fallback;
+        }
+
+        function escapeHtml(value) {
+            return String(value)
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/\"/g, "&quot;")
+                .replace(/'/g, "&#39;");
+        }
+
         function renderSpecs(product) {
             const specsBody = document.getElementById("product-specs");
             if (!specsBody) return;
 
             const specs = [
-                { label: "Thương hiệu", value: product.brand },
-                { label: "Trọng lượng", value: product.weight_u },
-                { label: "Kích thước cán vợt", value: product.grip_g },
-                { label: "Lực căng", value: product.tension },
-                { label: "Điểm cân bằng", value: product.balance_point },
-                { label: "SKU", value: product.sku },
-                { label: "Tồn kho", value: product.stock }
+                { label: "Thương hiệu", value: getProductField(product, ["brand"]) },
+                { label: "Trọng lượng", value: getProductField(product, ["weight_u", "weightU"]) },
+                { label: "Kích thước cán vợt", value: getProductField(product, ["grip_g", "gripG"]) },
+                { label: "Lực căng", value: getProductField(product, ["tension"]) },
+                { label: "Điểm cân bằng", value: getProductField(product, ["balance_point", "balancePoint"]) },
+                { label: "SKU", value: getProductField(product, ["sku"]) },
+                { label: "Tồn kho", value: getProductField(product, ["stock"]) }
             ].filter((item) => item.value !== null && item.value !== undefined && String(item.value).trim() !== "");
 
             if (specs.length === 0) {
@@ -284,22 +304,22 @@
             }
 
             specsBody.innerHTML = specs
-                .map((item) => `<tr><td class="text-secondary py-3">${item.label}</td><td class="fw-bold">${item.value}</td></tr>`)
+                .map((item) => `<tr><td class="text-secondary py-3">${escapeHtml(item.label)}</td><td class="fw-bold">${escapeHtml(item.value)}</td></tr>`)
                 .join("");
         }
 
         function renderProductDetail(product) {
             currentProduct = product;
-            const productName = product.name || "Sản phẩm";
-            const imageUrl = resolveProductImageUrl(product.imageUrl);
-            const stock = Number(product.stock || 0);
+            const productName = getProductField(product, ["name", "productName"], "Sản phẩm");
+            const imageUrl = resolveProductImageUrl(getProductField(product, ["imageUrl", "image_url"], ""));
+            const stock = Number(getProductField(product, ["stock"], 0));
             const isOutOfStock = stock <= 0;
 
             document.title = `${productName} - HPB Sports`;
             document.getElementById("product-name").textContent = productName;
             document.getElementById("breadcrumb-product-name").textContent = productName;
-            document.getElementById("product-price").textContent = formatPrice(product.price);
-            document.getElementById("product-description").textContent = product.description || "Đang cập nhật mô tả sản phẩm.";
+            document.getElementById("product-price").textContent = formatPrice(getProductField(product, ["price"], 0));
+            document.getElementById("product-description").textContent = getProductField(product, ["description"], "Đang cập nhật mô tả sản phẩm.");
             document.getElementById("mainImg").src = imageUrl;
             document.getElementById("mainImg").alt = productName;
 
@@ -309,7 +329,8 @@
                     productBadge.textContent = "Hết hàng";
                     productBadge.className = "badge bg-danger text-white mb-2";
                 } else {
-                    productBadge.textContent = product.brand ? `Thương hiệu ${product.brand}` : "Sản phẩm mới";
+                    const brand = getProductField(product, ["brand"], "");
+                    productBadge.textContent = brand ? `Thương hiệu ${brand}` : "Sản phẩm mới";
                     productBadge.className = "badge bg-danger-subtle text-danger mb-2";
                 }
             }
